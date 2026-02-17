@@ -4,6 +4,13 @@ TrackMint is a production-grade full-stack application designed to demonstrate r
 
 ---
 
+## 🌐 Live Infrastructure
+
+*   **Frontend (SPA)**: [https://trackmint-psi.vercel.app/](https://trackmint-psi.vercel.app/)
+*   **Backend (API Health)**: [https://trackmint-api.onrender.com/health](https://trackmint-api.onrender.com/health)
+
+---
+
 ## 🧾 Problem Context: The Reliability Gap
 
 In distributed systems, the "at-least-once" delivery nature of network protocols poses a significant risk to financial integrity. Common failure modes include:
