@@ -1,69 +1,67 @@
-# Deployment Guide — TrackMint v2
+# 🚀 Deployment Guide — TrackMint v2
 
-This guide explains how to deploy TrackMint to production using **Render** (Backend) and **Vercel** (Frontend).
+This guide walk you through deploying TrackMint to production using **Render** (Backend) and **Vercel** (Frontend).
+
+## 📊 App Status: PRD READY
+- ✅ **Secure Auth**: Password hashing + JWT.
+- ✅ **Realistic Setup**: Full names, Budgeting, Currency selection.
+- ✅ **PRD UI**: Premium minimal light theme (Apple + Notion style).
+- ✅ **Validation**: Real-time frontend + Strict backend schema.
 
 ---
 
 ## 🏗 Prerequisites
 
-1.  **MongoDB Atlas**: You already have this set up. Use the connection string in your `.env`.
-2.  **GitHub Repository**: Ensure your code is pushed to a GitHub repository.
+1.  **MongoDB Atlas**: Create a cluster at [mongodb.com](https://www.mongodb.com/cloud/atlas).
+2.  **GitHub**: Ensure your code is pushed (e.g., `git push origin main`).
 
 ---
 
 ## 1. Backend Deployment (Render)
 
-Render is recommended for basic Node.js APIs.
-
-1.  Go to [Render.com](https://render.com) and create a new **Web Service**.
-2.  Connect your GitHub repository.
-3.  Configure the service:
-    *   **Root Directory**: `backend`
-    *   **Environment**: `Node`
-    *   **Build Command**: `npm install`
-    *   **Start Command**: `npm start`
-4.  Add **Environment Variables**:
-    *   `NODE_ENV`: `production`
-    *   `MONGODB_URI`: *Your MongoDB Atlas connection string*
-    *   `JWT_SECRET`: *A strong random string*
-    *   `CORS_ORIGINS`: `https://your-frontend-domain.vercel.app` (You can update this after deploying the frontend)
-    *   `PORT`: `10000` (Render's default)
+1.  Sign up at [Render.com](https://render.com).
+2.  Click **New +** → **Web Service**.
+3.  Connect your GitHub repo.
+4.  **Settings**:
+    - **Root Directory**: `backend`
+    - **Runtime**: `Node`
+    - **Build Command**: `npm install`
+    - **Start Command**: `npm start`
+5.  **Environment Variables**:
+    - `NODE_ENV`: `production`
+    - `MONGODB_URI`: *Paste your Atlas connection string*
+    - `JWT_SECRET`: *Generate a random strong string*
+    - `CORS_ORIGINS`: `https://your-app.vercel.app` (Add your frontend URL once deployed)
+    - `PORT`: `10000` (Render default)
 
 ---
 
 ## 2. Frontend Deployment (Vercel)
 
-Vercel is the gold standard for Vite/React apps.
-
-1.  Go to [Vercel.com](https://vercel.com) and **Import** your repository.
-2.  Configure the project:
-    *   **Root Directory**: `frontend`
-    *   **Framework Preset**: `Vite`
-    *   **Build Command**: `npm run build`
-    *   **Output Directory**: `dist`
-3.  Add **Environment Variables**:
-    *   `VITE_API_BASE_URL`: `https://your-backend-url.onrender.com` (Get this from your Render dashboard)
-4.  Deploy!
-
----
-
-## ⚠️ Important Considerations for Production
-
-### 1. File Uploads (Receipts)
-In the current version, receipts are stored in the local `uploads/` folder of the server. On Render/Vercel, the local filesystem is **ephemeral** (files are deleted when the server sleeps or redeploys).
-*   **Recommendation**: For a real production app, refactor to use **Cloudinary** or **AWS S3** for image storage.
-
-### 2. Standalone vs Replica Set
-The backend uses a fallback for idempotency if MongoDB isn't a replica set. Since you are using **MongoDB Atlas**, it is a replica set, so **Transactions** will work automatically.
-
-### 3. DNS Issues
-If you experience DNS issues on Render/Vercel like you did locally, ensure you use the **standard connection string** (the one we fixed in `.env`) rather than the `+srv` one, or check Render's documentation on MongoDB Atlas connectivity.
+1.  Sign up at [Vercel.com](https://vercel.com).
+2.  Click **Add New** → **Project**.
+3.  Import your GitHub repo.
+4.  **Settings**:
+    - **Root Directory**: `frontend`
+    - **Framework Preset**: `Vite`
+    - **Build Command**: `npm run build`
+    - **Output Directory**: `dist`
+5.  **Environment Variables**:
+    - `VITE_API_BASE_URL`: `https://your-backend.onrender.com` (Get this from your Render dashboard after it deploys)
+6.  **Deploy!**
 
 ---
 
-## ✅ Deployment Checklist
+## ⚠️ Ephemeral Storage Notice
+TrackMint allows receipt uploads. Currently, these are stored in a local `uploads/` folder.
+- **On Render/Vercel**: Local files are deleted whenever the app restarts or redeploys.
+- **Production Solution**: For long-term storage, the app should be extended to use **Cloudinary** or **AWS S3**.
 
-- [ ] Backend is running and health check returns `ok` (`/health`).
-- [ ] Frontend can communicate with the backend (`VITE_API_BASE_URL` is set).
-- [ ] CORS is configured on the backend to allow your frontend domain.
-- [ ] JWT secret is changed from the default.
+---
+
+## ✅ Post-Deployment Checklist
+- [ ] Backend is live (`https://your-api.onrender.com/health` returns `ok`).
+- [ ] Frontend can login/signup.
+- [ ] Budget progress displays correctly on Dashboard.
+- [ ] Profile can be edited and saved.
+- [ ] **Security**: Ensure your `.env` files are NOT committed to GitHub.

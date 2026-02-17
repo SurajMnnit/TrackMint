@@ -5,6 +5,12 @@ const SALT_ROUNDS = 12;
 
 const userSchema = new mongoose.Schema(
     {
+        fullName: {
+            type: String,
+            required: [true, 'Full name is required.'],
+            trim: true,
+            minlength: [3, 'Full name must be at least 3 characters.'],
+        },
         email: {
             type: String,
             required: [true, 'Email is required.'],
@@ -16,6 +22,16 @@ const userSchema = new mongoose.Schema(
         password_hash: {
             type: String,
             required: true,
+        },
+        monthlyBudget: {
+            type: Number,
+            default: null,
+            min: [0, 'Monthly budget must be positive.'],
+        },
+        currency: {
+            type: String,
+            enum: ['INR', 'USD', 'EUR'],
+            default: 'INR',
         },
     },
     {

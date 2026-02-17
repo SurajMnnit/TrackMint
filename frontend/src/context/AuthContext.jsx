@@ -10,6 +10,17 @@ export function AuthProvider({ children }) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
+    const refreshUser = useCallback(async () => {
+        try {
+            const res = await getMe();
+            setUser(res.data.user);
+            if (res.data.currency) setCurrency(res.data.currency);
+        } catch (err) {
+            setToken(null);
+            setUser(null);
+        }
+    }, []);
+
     // Check if already authenticated on mount
     useEffect(() => {
         if (!hasToken()) {
@@ -17,16 +28,8 @@ export function AuthProvider({ children }) {
             return;
         }
 
-        getMe()
-            .then((res) => {
-                setUser(res.data.user);
-                if (res.data.currency) setCurrency(res.data.currency);
-            })
-            .catch(() => {
-                setToken(null);
-            })
-            .finally(() => setLoading(false));
-    }, []);
+        refreshUser().finally(() => setLoading(false));
+    }, [refreshUser]);
 
     // Listen for 401 logout events from the API client
     useEffect(() => {
@@ -50,12 +53,31 @@ export function AuthProvider({ children }) {
         }
     }, []);
 
-    const register = useCallback(async (email, password) => {
+    const register = useCallback(async (data) => {
         setError(null);
         try {
-            const res = await apiRegister(email, password);
+            const res = await apiRegister(data);
             setUser(res.data.user);
             if (res.data.currency) setCurrency(res.data.currency);
+            return res;
+        } catch (err) {
+            setError(err.message);
+            throw err;
+        }
+    }, []);
+
+    const updateProfile = useCallback(async (data) => {
+        setError(null);
+        try {
+            const { updateProfile: apiUpdate } = await import('../api/auth');
+            const res = await apiUpdate(data);
+            setUser(res.data.user);
+            // In case currency changed
+            if (res.data.user.currency) {
+                // Symbols could be updated here if we have a map
+                const symbols = { INR: '₹', USD: '$', EUR: '€' };
+                setCurrency({ code: res.data.user.currency, symbol: symbols[res.data.user.currency] || '₹' });
+            }
             return res;
         } catch (err) {
             setError(err.message);
@@ -70,7 +92,7 @@ export function AuthProvider({ children }) {
 
     return (
         <AuthContext.Provider
-            value={{ user, currency, loading, error, login, register, logout, setError }}
+            value={{ user, currency, loading, error, login, register, updateProfile, logout, refreshUser, setError }}
         >
             {children}
         </AuthContext.Provider>

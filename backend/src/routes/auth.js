@@ -17,13 +17,16 @@ const router = express.Router();
 
 router.post('/register', async (req, res, next) => {
     try {
-        const { email, password } = req.body;
+        const { email, password, fullName, monthlyBudget, currency } = req.body;
 
-        if (!email || !password) {
-            return res.status(400).json({ error: 'Email and password are required.' });
+        if (!email || !password || !fullName) {
+            return res.status(400).json({ error: 'Email, password, and full name are required.' });
         }
-        if (typeof password !== 'string' || password.length < 6) {
-            return res.status(400).json({ error: 'Password must be at least 6 characters.' });
+        if (typeof fullName !== 'string' || fullName.trim().length < 3) {
+            return res.status(400).json({ error: 'Full name must be at least 3 characters.' });
+        }
+        if (typeof password !== 'string' || password.length < 8) {
+            return res.status(400).json({ error: 'Password must be at least 8 characters.' });
         }
 
         // Check for existing user
@@ -33,19 +36,22 @@ router.post('/register', async (req, res, next) => {
         }
 
         const user = new User({
+            fullName: fullName.trim(),
             email: email.toLowerCase().trim(),
-            password_hash: password, // pre-save hook hashes this
+            password_hash: password,
+            monthlyBudget: monthlyBudget ? Number(monthlyBudget) : null,
+            currency: currency || 'INR',
         });
         await user.save();
 
         const token = signToken(user._id);
-        const currency = getCurrency();
+        const configCurrency = getCurrency();
 
         res.status(201).json({
             data: {
                 user: user.toJSON(),
                 token,
-                currency,
+                currency: configCurrency,
             },
         });
     } catch (err) {
@@ -98,6 +104,48 @@ router.get('/me', requireAuth, async (req, res, next) => {
         }
         const currency = getCurrency();
         res.json({ data: { user: user.toJSON(), currency } });
+    } catch (err) {
+        next(err);
+    }
+});
+
+// ── PUT /auth/profile ─────────────────────────────────────────────────────────
+
+router.put('/profile', requireAuth, async (req, res, next) => {
+    try {
+        const { fullName, monthlyBudget, currency, currentPassword, newPassword } = req.body;
+        const user = await User.findById(req.userId);
+
+        if (!user) {
+            return res.status(404).json({ error: 'User not found.' });
+        }
+
+        // 1. Basic fields
+        if (fullName) {
+            if (fullName.trim().length < 3) return res.status(400).json({ error: 'Full name too short.' });
+            user.fullName = fullName.trim();
+        }
+
+        if (monthlyBudget !== undefined) {
+            user.monthlyBudget = monthlyBudget === '' ? null : Number(monthlyBudget);
+        }
+
+        if (currency) {
+            if (!['INR', 'USD', 'EUR'].includes(currency)) return res.status(400).json({ error: 'Invalid currency.' });
+            user.currency = currency;
+        }
+
+        // 2. Password change (optional)
+        if (newPassword) {
+            if (!currentPassword) return res.status(400).json({ error: 'Current password required to change password.' });
+            const valid = await user.comparePassword(currentPassword);
+            if (!valid) return res.status(401).json({ error: 'Incorrect current password.' });
+            if (newPassword.length < 8) return res.status(400).json({ error: 'New password must be at least 8 characters.' });
+            user.password_hash = newPassword; // Hashed by pre-save hook
+        }
+
+        await user.save();
+        res.json({ data: { user: user.toJSON() } });
     } catch (err) {
         next(err);
     }

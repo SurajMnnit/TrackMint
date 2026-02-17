@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import { useAuth } from './context/AuthContext';
 import AuthPage from './components/AuthPage';
@@ -23,10 +23,11 @@ const IconUser = () => <Icon d={<><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4
 const IconLogout = () => <Icon d={<><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></>} />;
 const IconMail = () => <Icon d={<><rect x="2" y="4" width="20" height="16" rx="2" /><polyline points="22,7 12,13 2,7" /></>} />;
 const IconShield = () => <Icon d={<><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></>} />;
+const IconTrending = () => <Icon d={<><polyline points="23 6 13.5 15.5 8.5 10.5 1 18" /><polyline points="17 6 23 6 23 12" /></>} />;
 
 /* ── Sidebar ──────────────────────────────────────────────────────────── */
 function Sidebar({ user, onLogout, activeView, onViewChange }) {
-    const initial = user?.email?.[0]?.toUpperCase() || '?';
+    const initial = user?.fullName?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || '?';
 
     const handleLogout = () => {
         toast.success('Signed out successfully');
@@ -61,10 +62,10 @@ function Sidebar({ user, onLogout, activeView, onViewChange }) {
             </nav>
 
             <div className="sidebar-footer">
-                <div className="sidebar-user">
+                <div className="sidebar-user" onClick={() => onViewChange('profile')} style={{ cursor: 'pointer' }}>
                     <div className="sidebar-avatar">{initial}</div>
                     <div className="sidebar-user-info">
-                        <div className="sidebar-user-email">{user?.email}</div>
+                        <div className="sidebar-user-email">{user?.fullName || user?.email}</div>
                         <div className="sidebar-user-plan">Personal Plan</div>
                     </div>
                 </div>
@@ -76,9 +77,45 @@ function Sidebar({ user, onLogout, activeView, onViewChange }) {
     );
 }
 
+/* ── Budget Progress ───────────────────────────────────────────────────── */
+function BudgetProgress({ spent, budget, symbol }) {
+    if (!budget) return null;
+
+    const percent = Math.min(Math.round((spent / budget) * 100), 100);
+    const remaining = budget - spent;
+    const isExceeded = spent > budget;
+    const color = isExceeded ? 'var(--danger)' : 'var(--accent)';
+
+    return (
+        <div className="card" style={{ marginBottom: 'var(--sp-8)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <h2 className="list-title" style={{ margin: 0 }}>Monthly Budget Progress</h2>
+                <span style={{ fontSize: 13, fontWeight: 600, color }}>{percent}% used</span>
+            </div>
+
+            <div style={{ height: 10, background: 'var(--bg-muted)', borderRadius: 5, overflow: 'hidden', marginBottom: 16 }}>
+                <div style={{ height: '100%', width: `${percent}%`, background: color, transition: 'width 0.5s ease' }} />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                <div>
+                    <span style={{ color: 'var(--text-muted)' }}>Spent:</span> <b style={{ color: 'var(--text-primary)' }}>{symbol}{spent}</b>
+                </div>
+                <div>
+                    <span style={{ color: 'var(--text-muted)' }}>Remaining:</span> <b style={{ color: isExceeded ? 'var(--danger)' : 'var(--success)' }}>{symbol}{Math.abs(remaining)} {isExceeded ? 'Over' : 'Left'}</b>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 /* ── Dashboard View ───────────────────────────────────────────────────── */
 function DashboardView({ meta, expenses, loading, error, category, sort, page,
     setCategory, setSort, setPage, create, update, remove, submitting }) {
+
+    const { user, currency } = useAuth();
+    const symbol = currency?.symbol || '₹';
+
     return (
         <>
             <div className="page-header">
@@ -87,6 +124,10 @@ function DashboardView({ meta, expenses, loading, error, category, sort, page,
             </div>
 
             <ExpenseSummary meta={meta} />
+
+            {user?.monthlyBudget && (
+                <BudgetProgress spent={meta?.grand_total || 0} budget={user.monthlyBudget} symbol={symbol} />
+            )}
 
             <div className="content-grid">
                 <div className="card">
@@ -175,7 +216,96 @@ function TransactionsView({ expenses, loading, error, category, sort, page, meta
 
 /* ── Profile View ─────────────────────────────────────────────────────── */
 function ProfileView({ user }) {
-    const initial = user?.email?.[0]?.toUpperCase() || '?';
+    const { updateProfile } = useAuth();
+    const [edit, setEdit] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
+
+    // Form state
+    const [name, setName] = useState(user?.fullName || '');
+    const [budget, setBudget] = useState(user?.monthlyBudget || '');
+    const [curr, setCurr] = useState(user?.currency || 'INR');
+
+    const [curPw, setCurPw] = useState('');
+    const [newPw, setNewPw] = useState('');
+
+    const initial = user?.fullName?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || '?';
+    const joinedDate = user?.created_at ? new Date(user.created_at).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }) : 'Unknown';
+
+    const handleSave = async (e) => {
+        e.preventDefault();
+        setSubmitting(true);
+        const tid = toast.loading('Updating profile…');
+        try {
+            await updateProfile({
+                fullName: name,
+                monthlyBudget: budget === '' ? null : Number(budget),
+                currency: curr,
+                currentPassword: curPw || undefined,
+                newPassword: newPw || undefined
+            });
+            toast.success('Profile updated!', { id: tid });
+            setEdit(false);
+            setCurPw('');
+            setNewPw('');
+        } catch (err) {
+            toast.error(err.message || 'Update failed.', { id: tid });
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    if (edit) {
+        return (
+            <>
+                <div className="page-header">
+                    <h1 className="page-title">Edit Profile</h1>
+                    <p className="page-subtitle">Update your personal information</p>
+                </div>
+                <div className="card" style={{ maxWidth: 560 }}>
+                    <form onSubmit={handleSave}>
+                        <div className="form-group">
+                            <label className="form-label">Full Name</label>
+                            <input className="form-input" value={name} onChange={e => setName(e.target.value)} disabled={submitting} />
+                        </div>
+
+                        <div className="form-row">
+                            <div className="form-group">
+                                <label className="form-label">Monthly Budget</label>
+                                <input className="form-input" type="number" value={budget} onChange={e => setBudget(e.target.value)} disabled={submitting} />
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label">Currency</label>
+                                <select className="form-select" value={curr} onChange={e => setCurr(e.target.value)} disabled={submitting}>
+                                    <option value="INR">INR (₹)</option>
+                                    <option value="USD">USD ($)</option>
+                                    <option value="EUR">EUR (€)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div style={{ marginTop: 24, padding: 16, background: 'var(--bg-muted)', borderRadius: 10 }}>
+                            <h3 style={{ fontSize: 13, marginBottom: 12 }}>Change Password (Optional)</h3>
+                            <div className="form-group">
+                                <label className="form-label">Current Password</label>
+                                <input className="form-input" type="password" value={curPw} onChange={e => setCurPw(e.target.value)} disabled={submitting} />
+                            </div>
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                                <label className="form-label">New Password</label>
+                                <input className="form-input" type="password" value={newPw} onChange={e => setNewPw(e.target.value)} disabled={submitting} />
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: 12, marginTop: 32 }}>
+                            <button type="submit" className="btn btn--primary" disabled={submitting}>
+                                {submitting && <span className="spinner spinner--sm" />} Save Changes
+                            </button>
+                            <button type="button" className="btn btn--ghost" onClick={() => setEdit(false)} disabled={submitting}>Cancel</button>
+                        </div>
+                    </form>
+                </div>
+            </>
+        );
+    }
 
     return (
         <>
@@ -185,27 +315,34 @@ function ProfileView({ user }) {
             </div>
 
             <div className="card" style={{ maxWidth: 560 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 32 }}>
-                    <div className="sidebar-avatar" style={{ width: 64, height: 64, fontSize: 24 }}>
-                        {initial}
-                    </div>
-                    <div>
-                        <div style={{ fontSize: 20, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>
-                            {user?.email}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 32 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+                        <div className="sidebar-avatar" style={{ width: 64, height: 64, fontSize: 24 }}>{initial}</div>
+                        <div>
+                            <div style={{ fontSize: 20, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>{user?.fullName}</div>
+                            <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Joined {joinedDate}</div>
                         </div>
-                        <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Personal Plan</div>
                     </div>
+                    <button className="btn btn--ghost" style={{ border: '1px solid var(--border)' }} onClick={() => setEdit(true)}>Edit Profile</button>
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                         <div className="metric-icon metric-icon--accent"><IconMail /></div>
                         <div>
-                            <div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600, marginBottom: 2 }}>
-                                Email Address
-                            </div>
-                            <div style={{ fontSize: 14, color: 'var(--text-primary)', fontWeight: 500 }}>
-                                {user?.email}
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600, marginBottom: 2 }}>Email Address</div>
+                            <div style={{ fontSize: 14, color: 'var(--text-primary)', fontWeight: 500 }}>{user?.email}</div>
+                        </div>
+                    </div>
+
+                    <hr className="profile-divider" />
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <div className="metric-icon metric-icon--success"><IconTrending /></div>
+                        <div>
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600, marginBottom: 2 }}>Monthly Budget</div>
+                            <div style={{ fontSize: 14, color: 'var(--text-primary)', fontWeight: 600 }}>
+                                {user?.monthlyBudget ? `${user.currency} ${user.monthlyBudget}` : 'Not set'}
                             </div>
                         </div>
                     </div>
@@ -213,14 +350,10 @@ function ProfileView({ user }) {
                     <hr className="profile-divider" />
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <div className="metric-icon metric-icon--success"><IconShield /></div>
+                        <div className="metric-icon metric-icon--muted" style={{ fontSize: 14 }}>🌍</div>
                         <div>
-                            <div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600, marginBottom: 2 }}>
-                                Account Status
-                            </div>
-                            <div style={{ fontSize: 14, color: 'var(--success)', fontWeight: 600 }}>
-                                Active
-                            </div>
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600, marginBottom: 2 }}>Currency</div>
+                            <div style={{ fontSize: 14, color: 'var(--text-primary)', fontWeight: 500 }}>{user?.currency}</div>
                         </div>
                     </div>
 
@@ -229,12 +362,8 @@ function ProfileView({ user }) {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                         <div className="metric-icon metric-icon--muted" style={{ fontSize: 14 }}>🔐</div>
                         <div>
-                            <div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600, marginBottom: 2 }}>
-                                Security
-                            </div>
-                            <div style={{ fontSize: 14, color: 'var(--text-primary)', fontWeight: 500 }}>
-                                JWT Authentication · Encrypted
-                            </div>
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600, marginBottom: 2 }}>Security</div>
+                            <div style={{ fontSize: 14, color: 'var(--text-primary)', fontWeight: 500 }}>JWT Authentication · Encrypted</div>
                         </div>
                     </div>
                 </div>

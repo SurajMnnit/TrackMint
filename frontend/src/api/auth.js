@@ -4,10 +4,10 @@
 
 import { apiFetch, setToken } from './client';
 
-export async function register(email, password) {
+export async function register(data) {
     const result = await apiFetch('/auth/register', {
         method: 'POST',
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify(data),
     });
     if (result.data?.token) {
         setToken(result.data.token);
@@ -24,6 +24,13 @@ export async function login(email, password) {
         setToken(result.data.token);
     }
     return result;
+}
+
+export async function updateProfile(data) {
+    return apiFetch('/auth/profile', {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
 }
 
 export async function getMe() {
