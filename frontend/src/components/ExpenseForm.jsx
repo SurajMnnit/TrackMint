@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
+import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
-import { useToast } from './Toast';
 
 const CATEGORIES = [
     { value: 'food', label: 'Food' },
@@ -16,7 +16,6 @@ const CATEGORIES = [
 
 export default function ExpenseForm({ onSubmit, loading }) {
     const { currency } = useAuth();
-    const toast = useToast();
     const symbol = currency?.symbol || '₹';
 
     const today = new Date().toISOString().split('T')[0];
@@ -25,27 +24,16 @@ export default function ExpenseForm({ onSubmit, loading }) {
     const [category, setCategory] = useState('food');
     const [description, setDescription] = useState('');
     const [receipt, setReceipt] = useState(null);
-    const [errors, setErrors] = useState({});
     const fileRef = useRef(null);
-
-    const validate = () => {
-        const errs = {};
-        if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
-            errs.amount = 'Enter a valid amount';
-        }
-        if (!date) errs.date = 'Select a date';
-        if (!category) errs.category = 'Pick a category';
-        return errs;
-    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        const errs = validate();
-        if (Object.keys(errs).length > 0) {
-            setErrors(errs);
+        if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
+            toast.error('Enter a valid amount.');
             return;
         }
-        setErrors({});
+
+        const tid = toast.loading('Adding expense…');
 
         try {
             await onSubmit({
@@ -55,8 +43,7 @@ export default function ExpenseForm({ onSubmit, loading }) {
                 description: description.trim(),
                 receipt,
             });
-
-            toast.success('Expense added successfully');
+            toast.success('Expense added!', { id: tid });
             setAmount('');
             setDate(today);
             setCategory('food');
@@ -64,105 +51,59 @@ export default function ExpenseForm({ onSubmit, loading }) {
             setReceipt(null);
             if (fileRef.current) fileRef.current.value = '';
         } catch (err) {
-            toast.error(err.message || 'Failed to add expense');
+            toast.error(err.message || 'Failed to add expense.', { id: tid });
         }
     };
 
     return (
-        <div className="card">
-            <div className="card__header">
-                <span className="card__title">New Expense</span>
+        <form onSubmit={handleSubmit}>
+            <div className="form-row">
+                <div className="form-group">
+                    <label className="form-label">Amount ({symbol})</label>
+                    <input className="form-input" type="number" step="0.01" placeholder="0.00"
+                        value={amount} onChange={(e) => setAmount(e.target.value)} disabled={loading} />
+                </div>
+                <div className="form-group">
+                    <label className="form-label">Date</label>
+                    <input className="form-input" type="date" value={date}
+                        onChange={(e) => setDate(e.target.value)} disabled={loading} />
+                </div>
             </div>
 
-            <form onSubmit={handleSubmit}>
-                <div className="form-row">
-                    <div className="form-group">
-                        <label htmlFor="exp-amount">Amount ({symbol})</label>
-                        <input
-                            id="exp-amount"
-                            type="number"
-                            step="0.01"
-                            min="0.01"
-                            placeholder="0.00"
-                            value={amount}
-                            onChange={(e) => setAmount(e.target.value)}
-                            disabled={loading}
-                        />
-                        {errors.amount && <div className="form-error">{errors.amount}</div>}
-                    </div>
+            <div className="form-group">
+                <label className="form-label">Category</label>
+                <select className="form-select" value={category}
+                    onChange={(e) => setCategory(e.target.value)} disabled={loading}>
+                    {CATEGORIES.map((c) => (
+                        <option key={c.value} value={c.value}>{c.label}</option>
+                    ))}
+                </select>
+            </div>
 
-                    <div className="form-group">
-                        <label htmlFor="exp-date">Date</label>
-                        <input
-                            id="exp-date"
-                            type="date"
-                            value={date}
-                            onChange={(e) => setDate(e.target.value)}
-                            disabled={loading}
-                        />
-                        {errors.date && <div className="form-error">{errors.date}</div>}
-                    </div>
-                </div>
+            <div className="form-group">
+                <label className="form-label">Description</label>
+                <input className="form-input" type="text" placeholder="What was it for?"
+                    value={description} onChange={(e) => setDescription(e.target.value)} disabled={loading} />
+            </div>
 
-                <div className="form-group">
-                    <label htmlFor="exp-category">Category</label>
-                    <select
-                        id="exp-category"
-                        value={category}
-                        onChange={(e) => setCategory(e.target.value)}
-                        disabled={loading}
-                    >
-                        {CATEGORIES.map((c) => (
-                            <option key={c.value} value={c.value}>
-                                {c.label}
-                            </option>
-                        ))}
-                    </select>
-                    {errors.category && <div className="form-error">{errors.category}</div>}
-                </div>
-
-                <div className="form-group">
-                    <label htmlFor="exp-desc">Description</label>
-                    <textarea
-                        id="exp-desc"
-                        placeholder="What was it for?"
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
-                        disabled={loading}
-                        rows={2}
-                    />
-                </div>
-
-                <div className="form-group">
-                    <label>Receipt</label>
-                    <div className={`file-upload${receipt ? ' has-file' : ''}`}>
-                        <input
-                            type="file"
-                            accept="image/*"
-                            ref={fileRef}
-                            onChange={(e) => setReceipt(e.target.files[0] || null)}
-                            disabled={loading}
-                        />
-                        <div className="file-upload__label">
-                            <span className="file-upload__icon">
-                                {receipt ? '✓' : '📎'}
-                            </span>
-                            <span>
-                                {receipt ? receipt.name : 'Drop image or click to upload'}
-                            </span>
-                        </div>
+            <div className="form-group">
+                <label className="form-label">Receipt</label>
+                <div className={`file-upload${receipt ? ' file-upload--active' : ''}`}>
+                    <input type="file" accept="image/*" ref={fileRef}
+                        onChange={(e) => setReceipt(e.target.files[0] || null)} disabled={loading} />
+                    <div className="file-upload-content">
+                        <span className="file-upload-icon">{receipt ? '✅' : '📎'}</span>
+                        <span className="file-upload-text">
+                            {receipt ? receipt.name : 'Click to attach receipt'}
+                        </span>
                     </div>
                 </div>
+            </div>
 
-                <button
-                    type="submit"
-                    className="btn btn-primary"
-                    disabled={loading}
-                >
-                    {loading && <span className="spinner spinner--sm" />}
-                    Add Expense
-                </button>
-            </form>
-        </div>
+            <button type="submit" className="btn btn--primary btn--full" disabled={loading}>
+                {loading && <span className="spinner spinner--sm" />}
+                Add Expense
+            </button>
+        </form>
     );
 }

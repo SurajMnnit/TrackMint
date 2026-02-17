@@ -18,10 +18,9 @@ const SORT_OPTIONS = [
 
 export default function ExpenseFilters({ category, sort, onCategoryChange, onSortChange }) {
     return (
-        <div className="filters">
-            <span className="filters__label">Filter</span>
+        <div className="filters-bar">
             <select
-                id="filter-category"
+                className="filter-select"
                 value={category}
                 onChange={(e) => onCategoryChange(e.target.value)}
             >
@@ -30,9 +29,8 @@ export default function ExpenseFilters({ category, sort, onCategoryChange, onSor
                 ))}
             </select>
 
-            <span className="filters__label" style={{ marginLeft: 'auto' }}>Sort</span>
             <select
-                id="filter-sort"
+                className="filter-select"
                 value={sort}
                 onChange={(e) => onSortChange(e.target.value)}
             >

@@ -27,7 +27,7 @@ export default function Pagination({ page, totalPages, onPageChange }) {
     return (
         <div className="pagination">
             <button
-                className="pagination__btn"
+                className="pagination-btn"
                 onClick={() => onPageChange(page - 1)}
                 disabled={page <= 1}
             >
@@ -36,11 +36,11 @@ export default function Pagination({ page, totalPages, onPageChange }) {
 
             {getPages().map((p, i) =>
                 p === '...' ? (
-                    <span key={`dots-${i}`} className="pagination__dots">…</span>
+                    <span key={`dots-${i}`} className="pagination-dots">…</span>
                 ) : (
                     <button
                         key={p}
-                        className={`pagination__btn${p === page ? ' pagination__btn--active' : ''}`}
+                        className={`pagination-btn${p === page ? ' pagination-btn--active' : ''}`}
                         onClick={() => onPageChange(p)}
                     >
                         {p}
@@ -49,7 +49,7 @@ export default function Pagination({ page, totalPages, onPageChange }) {
             )}
 
             <button
-                className="pagination__btn"
+                className="pagination-btn"
                 onClick={() => onPageChange(page + 1)}
                 disabled={page >= totalPages}
             >
